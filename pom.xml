@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.adviser.maven</groupId>
 	<artifactId>featuremerge-maven-plugin</artifactId>
-	<version>1.0.1</version>
+	<version>1.0.2-SNAPSHOT</version>
 	<packaging>maven-plugin</packaging>
 	<name>Karaf Features Merge plugin</name>
 
@@ -102,15 +102,15 @@
 
   <distributionManagement>
     <repository>
-        <id>nextaudience-artifactory</id>
-        <name>repo.v402.rz.ham.next-audience.net-releases</name>
-        <url>http://repo.v402.rz.ham.next-audience.net/artifactory/plugins-release-local</url>
+        <id>nextaudience-nexus</id>
+        <name>nexus.v402.rz.ham.next-audience.net-releases</name>
+        <url>http://nexus.v402.rz.ham.next-audience.net/nexus/content/repositories/releases/</url>
     </repository>
 
     <snapshotRepository>
-        <id>nextaudience-artifactory</id>
-        <name>repo.v402.rz.ham.next-audience.net-snapshots</name>
-        <url>http://repo.v402.rz.ham.next-audience.net/artifactory/plugins-snapshot-local</url>
+        <id>nextaudience-nexus</id>
+        <name>nexus.v402.rz.ham.next-audience.net-snapshots</name>
+        <url>http://nexus.v402.rz.ham.next-audience.net/nexus/content/repositories/snapshots/</url>
     </snapshotRepository>
   </distributionManagement>
 
