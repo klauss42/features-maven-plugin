@@ -22,7 +22,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintStream;
+import java.io.StringWriter;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -34,8 +36,14 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 
+import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.repository.ArtifactRepository;
@@ -116,7 +124,7 @@ public class MergeFeaturesRepoMojo extends MojoSupport {
     }
 
     private void writeFeatures(Map<String, Feature> featuresMap) throws MojoExecutionException {
-        PrintStream out = null;
+//        
         try {
             TreeMap<String, Feature> sortedFeatureMap = new TreeMap<String, Feature>(featuresMap);
 
@@ -124,21 +132,30 @@ public class MergeFeaturesRepoMojo extends MojoSupport {
             if (!parent.exists()) {
                 parent.mkdirs();
             }
-            out = new PrintStream(new FileOutputStream(outputFile));
+            
             getLog().info("Generating " + outputFile.getAbsolutePath());
 
-            String name = "";
-            if (mergedRepoName != null) {
-                name = " name=\"" + mergedRepoName + "\"";
-            }
-            out.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-            out.println("<features " + name);
-            out.println("\txmlns=\"http://karaf.apache.org/xmlns/features/v1.0.0\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"");
-            out.println("\txsi:schemaLocation=\"http://karaf.apache.org/xmlns/features/v1.0.0 http://karaf.apache.org/xmlns/features/v1.0.0\">");
+            
+            DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+            Document doc = docBuilder.newDocument();
+            
+            Element rootElement = doc.createElement("features");
+            rootElement.setAttribute("name", mergedRepoName);
+            rootElement.setAttributeNS("http://www.w3.org/2001/XMLSchema-instance", "xsi", "http://karaf.apache.org/xmlns/features/v1.0.0");
+            doc.appendChild(rootElement);
+            
+//            out.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+//            out.println("<features " + name);
+//            out.println("\txmlns=\"http://karaf.apache.org/xmlns/features/v1.0.0\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"");
+//            out.println("\txsi:schemaLocation=\"http://karaf.apache.org/xmlns/features/v1.0.0 http://karaf.apache.org/xmlns/features/v1.0.0\">");
             if (mergedRepoRepositories != null) {
-                out.println("");
+//                out.println("");
                 for (String repo : mergedRepoRepositories) {
-                    out.println("\t<repository>" + repo + "</repository>");
+                    Element repository = doc.createElement("repository");
+                    repository.setTextContent(repo);
+                    rootElement.appendChild(repository);
+//                    out.println("\t<repository>" + repo + "</repository>");
                 }
             }
             for (Map.Entry<String, Feature> entry : sortedFeatureMap.entrySet()) {
@@ -147,20 +164,27 @@ public class MergeFeaturesRepoMojo extends MojoSupport {
                     for (String prefix : includeFeaturesPrefixes) {
                         if (feature.getName().startsWith(prefix)) {
                             getLog().info(" Generating feature " + feature.getName() + "/" + feature.getVersion() + " from repo " + feature.getOriginalRepo());
-                            feature.write(out);                            
+                            rootElement.appendChild(feature.write(doc));                            
                         }
                     }
                 }
             }
-            out.println("</features>");
+            TransformerFactory tf = TransformerFactory.newInstance();
+            Transformer transformer = tf.newTransformer();
+            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+            transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+            transformer.setOutputProperty(OutputKeys.METHOD, "xml");
+            //transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+            //PrintStream out = new PrintStream(new FileOutputStream(outputFile));
+            OutputStream out = new FileOutputStream(outputFile);
+            transformer.transform(new DOMSource(doc), new StreamResult(out));
+            out.close();
+//            out.println("</features>");
             getLog().info("...done!");
         } catch (Exception e) {
             getLog().error(e);
             throw new MojoExecutionException("Unable to create " + outputFile.getAbsolutePath() + " file: " + e, e);
         } finally {
-            if (out != null) {
-                out.close();
-            }
         }
 
     }
@@ -279,30 +303,45 @@ public class MergeFeaturesRepoMojo extends MojoSupport {
             configFiles.add(configFile);
         }
 
-        private String writeAttr(String name, String value) {
-            if (value != null && value.length() > 0) {
-                return " " + name + "=" + "\"" + value + "\"";
-            } else {
-                return "";
-            }
-        }
+//        private String writeAttr(String name, String value) {
+//            if (value != null && value.length() > 0) {
+//                return " " + name + "=" + "\"" + value + "\"";
+//            } else {
+//                return "";
+//            }
+//        }
 
-        public void write(PrintStream out) {
+        public Element write(Document doc) {
 
-            out.println("\n\t<feature" + writeAttr("name", name) + writeAttr("version", version) + ">");
+            final Element feature = doc.createElement("feature");
+            feature.setAttribute("name", name);
+            feature.setAttribute("version", version);
+            
+//            out.println("\n\t<feature" + writeAttr("name", name) + writeAttr("version", version) + ">");
 
             for (SimpleArtifact a : dependencies) {
-                out.println("\t\t<feature" + writeAttr("version", a.getVersion()) + ">" + a.getName() + "</feature>");
+                final Element inFeature = doc.createElement("feature");
+                inFeature.setAttribute("version", a.getVersion());
+                inFeature.setTextContent(a.getName());
+                feature.appendChild(inFeature);
+//                out.println("\t\t<feature" + writeAttr("version", a.getVersion()) + ">" + a.getName() + "</feature>");
             }
             for (SimpleArtifact a : bundles) {
-                out.println("\t\t<bundle>" + a.getName() + "</bundle>");
+                final Element bundle = doc.createElement("bundle");
+                bundle.setTextContent(a.getName());
+                feature.appendChild(bundle);
+//                out.println("\t\t<bundle>" + a.getName() + "</bundle>");
             }
             for (SimpleArtifact a : configFiles) {
-                out.println("\t\t<configfile" + writeAttr("finalname", a.getAttr("finalname")) + ">" + a.getName()
-                        + "</configfile>");
+                final Element configfile = doc.createElement("configfile");
+                configfile.setAttribute("finalname", a.getAttr("finalname"));
+                configfile.setTextContent(a.getName());
+                feature.appendChild(configfile);
+//                out.println("\t\t<configfile" + writeAttr("finalname", a.getAttr("finalname")) + ">" + a.getName()
+//                        + "</configfile>");
             }
-            out.println("\t</feature>");
-
+//            out.println("\t</feature>");
+            return feature;
         }
     }
 
